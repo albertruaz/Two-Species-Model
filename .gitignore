@@ -1,0 +1,17 @@
+**.pyc
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.pyw
+**/*.pyz
+**/*.pywz
+**/*.pyzw
+
+**/*.log
+
+**/*.json
+
+wandb/
+**/*.wandb
+
+latest-run
