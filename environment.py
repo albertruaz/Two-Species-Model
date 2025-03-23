@@ -1,185 +1,291 @@
-import matplotlib.pyplot as plt
 import numpy as np
-import wandb
+import matplotlib.pyplot as plt
 from matplotlib.animation import ArtistAnimation
+import wandb
+from model import GridBasedModel
 
 class Environment:
     """시뮬레이션 환경을 관리하는 클래스"""
-    def __init__(self, model_type, width, height, config):
+    def __init__(self, config):
         """
         Parameters:
-        model_type: "reaction_diffusion" 또는 "random_walk"
-        width, height: 시뮬레이션 공간 크기
-        config: 모델 설정
+        config: 모델 설정 딕셔너리
         """
-        self.model_type = model_type
-        self.width = width
-        self.height = height
+        # 난수 시드 설정
+        seed = config.get('random_seed', 42)
+        np.random.seed(seed)
+        
         self.config = config
+        self.model = GridBasedModel(config)
         
-        # 모델 초기화
-        if model_type == "reaction_diffusion":
-            from model import ReactionDiffusionModel
-            self.model = ReactionDiffusionModel(width, height, config)
-        else:  # random_walk
-            from model import RandomWalkSimulation
-            self.model = RandomWalkSimulation(width, height, config)
-            
         # 시각화 설정
-        self.setup_visualization()
+        plt.style.use(config['plot_style'])
+        self.fig = plt.figure(figsize=(20, 5))
+        # 왼쪽부터 순서대로: 밀도 맵, 전체 개체수, 1x1 영역, 5x5 영역, 10x10 영역
+        self.ax1 = plt.subplot(151, aspect='equal')  # 밀도 맵
+        self.ax2 = plt.subplot(152)  # 전체 개체수
+        self.ax3 = plt.subplot(153)  # 1x1 영역
+        self.ax4 = plt.subplot(154)  # 5x5 영역
+        self.ax5 = plt.subplot(155)  # 10x10 영역
         
-    def setup_visualization(self):
-        """시각화 설정"""
-        plt.ion()
+        # 시간에 따른 개체수 데이터
+        self.times = []
+        # 전체 공간의 개체수
+        self.total_preys = []
+        self.total_predators = []
+        # 1x1 영역의 개체수
+        self.local_preys_1 = []
+        self.local_predators_1 = []
+        # 5x5 영역의 개체수
+        self.local_preys_5 = []
+        self.local_predators_5 = []
+        # 10x10 영역의 개체수
+        self.local_preys_10 = []
+        self.local_predators_10 = []
         
-        if self.model_type == "reaction_diffusion":
-            self.fig, self.axs = plt.subplots(1, 3, figsize=(15, 5))
-            
-            # 컬러맵 설정
-            self.prey_img = self.axs[0].imshow(self.model.u, cmap=plt.cm.Greens, 
-                                              vmin=0, vmax=self.model.K,
-                                              extent=[0, self.width * self.model.dx, 
-                                                     0, self.height * self.model.dx])
-            self.predator_img = self.axs[1].imshow(self.model.v, cmap=plt.cm.Reds, 
-                                                  vmin=0, vmax=3,
-                                                  extent=[0, self.width * self.model.dx, 
-                                                         0, self.height * self.model.dx])
-            
-            # 제목 및 레이블 설정
-            self.axs[0].set_title("Prey Density")
-            self.axs[1].set_title("Predator Density")
-            self.axs[2].set_title("Population over Time")
-            
-            for ax in self.axs[:2]:
-                ax.set_xlabel("Space")
-                ax.set_ylabel("Space")
-            
-            self.fig.colorbar(self.prey_img, ax=self.axs[0], label="Density")
-            self.fig.colorbar(self.predator_img, ax=self.axs[1], label="Density")
-            
-        else:  # random_walk
-            self.fig, (self.ax, self.ax_counts) = plt.subplots(1, 2, figsize=(14, 6))
-            self.ax.set_title("Simulation Space")
-            self.ax_counts.set_title("Population over Time")
-            self.ax_counts.set_xlabel("Time")
-            self.ax_counts.set_ylabel("Count")
-            
-        # 데이터 추적용
-        self.time_points = []
-        self.prey_data = []
-        self.predator_data = []
-        
-    def step(self):
-        """한 단계 시뮬레이션 진행"""
-        self.model.step()
+        # 초기 데이터 기록
         stats = self.model.get_stats()
+        self.times.append(stats['time'])
+        self.total_preys.append(stats['total_prey'])
+        self.total_predators.append(stats['total_predator'])
         
-        # 데이터 추적
-        if self.model_type == "reaction_diffusion":
-            self.time_points.append(stats["time"])
-            self.prey_data.append(stats["total_prey"])
-            self.predator_data.append(stats["total_predator"])
-        else:
-            self.time_points.append(stats["time"])
-            self.prey_data.append(stats["total_prey"])
-            self.predator_data.append(stats["total_predator"])
-            
+        # 지역 개체수 초기화
+        center = self.model.n_grid // 2
+        self._update_local_populations(center)
+        
+        # WandB 초기화
+        if self.config.get('use_wandb', False):
+            wandb.init(
+                project=self.config['wandb_project'],
+                entity=self.config['wandb_entity'],
+                config=config
+            )
+    
+    def _update_local_populations(self, center):
+        """중앙 주변 영역의 개체수 업데이트"""
+        # 1x1 영역
+        self.local_preys_1.append(np.sum(self.model.prey_density[center:center+1, center:center+1]))
+        self.local_predators_1.append(np.sum(self.model.predator_density[center:center+1, center:center+1]))
+        
+        # 5x5 영역
+        start_5 = center - 2
+        end_5 = center + 3
+        self.local_preys_5.append(np.sum(self.model.prey_density[start_5:end_5, start_5:end_5]))
+        self.local_predators_5.append(np.sum(self.model.predator_density[start_5:end_5, start_5:end_5]))
+        
+        # 10x10 영역
+        start_10 = center - 5
+        end_10 = center + 5
+        self.local_preys_10.append(np.sum(self.model.prey_density[start_10:end_10, start_10:end_10]))
+        self.local_predators_10.append(np.sum(self.model.predator_density[start_10:end_10, start_10:end_10]))
+    
+    def step(self):
+        """시뮬레이션 한 단계 진행"""
+        stats = self.model.step()
+        
+        # 중앙 영역 개체수 업데이트
+        center = self.model.n_grid // 2
+        self._update_local_populations(center)
+        
+        # WandB에 로깅
+        if self.config.get('use_wandb', False):
+            wandb.log({
+                'total_prey': stats['total_prey'],
+                'total_predator': stats['total_predator'],
+                'time': stats['time']
+            })
+        
         return stats
     
     def render(self):
         """현재 상태 시각화"""
-        if self.model_type == "reaction_diffusion":
-            # 밀도 맵 업데이트
-            self.prey_img.set_array(self.model.u)
-            self.predator_img.set_array(self.model.v)
-            
-            # 시간 표시 업데이트
-            self.fig.suptitle(f"Time: {self.model.time:.2f} / {self.model.T}")
-            
-            # 개체수 그래프 업데이트
-            self.axs[2].clear()
-            self.axs[2].set_title("Population over Time")
-            self.axs[2].plot(self.time_points, self.prey_data, 'g-', label="Prey")
-            self.axs[2].plot(self.time_points, self.predator_data, 'r-', label="Predator")
-            self.axs[2].set_xlabel("Time")
-            self.axs[2].set_ylabel("Total Population")
-            self.axs[2].legend()
-            
-        else:  # random_walk
-            self.ax.clear()
-            self.ax.set_title(f"Step {len(self.time_points)}")
-            self.ax.set_xlim(0, self.width)
-            self.ax.set_ylim(0, self.height)
-            
-            # 개체 위치 산점도
-            prey_x = [a.x for a in self.model.agents if a.species == "Prey" and a.alive]
-            prey_y = [a.y for a in self.model.agents if a.species == "Prey" and a.alive]
-            predator_x = [a.x for a in self.model.agents if a.species == "Predator" and a.alive]
-            predator_y = [a.y for a in self.model.agents if a.species == "Predator" and a.alive]
-            
-            # 알(egg) 위치 표시
-            egg_x = [egg["x"] for egg in self.model.eggs]
-            egg_y = [egg["y"] for egg in self.model.eggs]
-            egg_colors = ["green" if egg["species"] == "Prey" else "red" for egg in self.model.eggs]
-            
-            self.ax.scatter(prey_x, prey_y, color='green', label="Prey")
-            self.ax.scatter(predator_x, predator_y, color='red', label="Predator")
-            self.ax.scatter(egg_x, egg_y, color=egg_colors, marker='x', alpha=0.5, label="Eggs")
-            self.ax.legend()
-            
-            # 개체수 그래프 업데이트
-            self.ax_counts.clear()
-            self.ax_counts.set_title("Population over Time")
-            self.ax_counts.plot(self.time_points, self.prey_data, 'g-', label="Prey")
-            self.ax_counts.plot(self.time_points, self.predator_data, 'r-', label="Predator")
-            self.ax_counts.set_xlabel("Time")
-            self.ax_counts.set_ylabel("Count")
-            self.ax_counts.legend()
+        self.ax1.clear()
+        self.ax2.clear()
+        self.ax3.clear()
+        self.ax4.clear()
+        self.ax5.clear()
+        
+        # 시각화를 위한 격자선 (n_grid 사용)
+        if 'n_grid' in self.config:
+            x_ticks = np.linspace(0, self.config['L'], self.config['n_grid'])
+            y_ticks = np.linspace(0, self.config['L'], self.config['n_grid'])
+            self.ax1.set_xticks(x_ticks, minor=True)
+            self.ax1.set_yticks(y_ticks, minor=True)
+            self.ax1.grid(True, which='minor', color=self.config['grid_color'], alpha=self.config['grid_alpha'])
+        
+        # 피식자와 포식자 밀도를 하나의 그래프에 표시
+        prey_max = max(1, np.max(self.model.prey_density))
+        pred_max = max(1, np.max(self.model.predator_density))
+        
+        # 피식자 밀도 컨투어 (녹색)
+        if prey_max > 0:
+            self.ax1.contour(self.model.prey_density,
+                          levels=np.linspace(0, prey_max, 10),
+                          extent=[0, self.config['L'], 0, self.config['L']],
+                          cmap='YlGn',
+                          alpha=0.7)
+        
+        # 포식자 밀도 컨투어 (빨간색)
+        if pred_max > 0:
+            self.ax1.contour(self.model.predator_density,
+                          levels=np.linspace(0, pred_max, 10),
+                          extent=[0, self.config['L'], 0, self.config['L']],
+                          cmap='OrRd',
+                          alpha=0.7)
+        
+        # 중앙 영역 표시
+        center = self.config['L'] / 2
+        # 1x1 영역
+        self.ax1.plot([center-0.5, center+0.5, center+0.5, center-0.5, center-0.5],
+                     [center-0.5, center-0.5, center+0.5, center+0.5, center-0.5],
+                     'white', linestyle='--', alpha=0.5)
+        # 5x5 영역
+        self.ax1.plot([center-2.5, center+2.5, center+2.5, center-2.5, center-2.5],
+                     [center-2.5, center-2.5, center+2.5, center+2.5, center-2.5],
+                     'white', linestyle='--', alpha=0.5)
+        # 10x10 영역
+        self.ax1.plot([center-5, center+5, center+5, center-5, center-5],
+                     [center-5, center-5, center+5, center+5, center-5],
+                     'white', linestyle='--', alpha=0.5)
+        
+        self.ax1.set_title('Population Density')
+        self.ax1.set_xlabel('X')
+        self.ax1.set_ylabel('Y')
+        
+        # 전체 개체수 변화 그래프
+        if len(self.total_preys) > 0:
+            self.ax2.plot(self.times, self.total_preys, 
+                        color='green', label='Prey', linewidth=self.config['line_width'])
+            self.ax2.plot(self.times, self.total_predators,
+                        color='red', label='Predator', linewidth=self.config['line_width'])
+            max_pop = max(max(self.total_preys), max(self.total_predators))
+            self.ax2.set_ylim([0, max(max_pop * 1.1, 0.1)])
+        
+        self.ax2.set_title('Total Population')
+        self.ax2.set_xlabel('Time')
+        self.ax2.set_ylabel('Population')
+        self.ax2.legend()
+        self.ax2.grid(True, alpha=self.config['grid_alpha_pop'])
+        
+        # 1x1 영역 개체수 변화 그래프
+        if len(self.local_preys_1) > 0:
+            self.ax3.plot(self.times, self.local_preys_1, 
+                       color='green', label='Prey', linewidth=self.config['line_width'])
+            self.ax3.plot(self.times, self.local_predators_1,
+                       color='red', label='Predator', linewidth=self.config['line_width'])
+            max_pop = max(max(self.local_preys_1), max(self.local_predators_1))
+            self.ax3.set_ylim([0, max(max_pop * 1.1, 0.1)])
+        
+        self.ax3.set_title('1x1 Region')
+        self.ax3.set_xlabel('Time')
+        self.ax3.set_ylabel('Population')
+        self.ax3.legend()
+        self.ax3.grid(True, alpha=self.config['grid_alpha_pop'])
+        
+        # 5x5 영역 개체수 변화 그래프
+        if len(self.local_preys_5) > 0:
+            self.ax4.plot(self.times, self.local_preys_5, 
+                       color='green', label='Prey', linewidth=self.config['line_width'])
+            self.ax4.plot(self.times, self.local_predators_5,
+                       color='red', label='Predator', linewidth=self.config['line_width'])
+            max_pop = max(max(self.local_preys_5), max(self.local_predators_5))
+            self.ax4.set_ylim([0, max(max_pop * 1.1, 0.1)])
+        
+        self.ax4.set_title('5x5 Region')
+        self.ax4.set_xlabel('Time')
+        self.ax4.set_ylabel('Population')
+        self.ax4.legend()
+        self.ax4.grid(True, alpha=self.config['grid_alpha_pop'])
+        
+        # 10x10 영역 개체수 변화 그래프
+        if len(self.local_preys_10) > 0:
+            self.ax5.plot(self.times, self.local_preys_10, 
+                       color='green', label='Prey', linewidth=self.config['line_width'])
+            self.ax5.plot(self.times, self.local_predators_10,
+                       color='red', label='Predator', linewidth=self.config['line_width'])
+            max_pop = max(max(self.local_preys_10), max(self.local_predators_10))
+            self.ax5.set_ylim([0, max(max_pop * 1.1, 0.1)])
+        
+        self.ax5.set_title('10x10 Region')
+        self.ax5.set_xlabel('Time')
+        self.ax5.set_ylabel('Population')
+        self.ax5.legend()
+        self.ax5.grid(True, alpha=self.config['grid_alpha_pop'])
         
         plt.tight_layout()
-        plt.pause(0.01)
+        if not hasattr(self, '_recording'):
+            plt.pause(self.config['pause_interval'])
     
-    def run(self, total_steps, plot_interval=1, project_name="PredPreyProject", 
-            record_video=False, video_filename="simulation.mp4"):
-        """시뮬레이션 실행
-        
-        Parameters:
-        total_steps: 총 시뮬레이션 단계 수
-        plot_interval: 몇 단계마다 시각화할지
-        project_name: WandB 프로젝트 이름
-        record_video: 비디오 저장 여부
-        video_filename: 저장할 비디오 파일명
-        """
-        # WandB 초기화
-        wandb.init(project=project_name, entity="mathematical-modeling")
-        wandb.config.update(self.config)
-        
-        # 비디오 프레임 저장용
+    def run(self, total_steps, plot_interval=1, record_video=False):
+        """시뮬레이션 실행"""
         if record_video:
-            frames = []
+            self._recording = True  # 녹화 모드 표시
+            import tempfile
+            import os
+            import cv2
+            # 임시 디렉토리 생성
+            temp_dir = tempfile.mkdtemp()
+            frame_files = []
         
-        # 메인 시뮬레이션 루프
         for step in range(total_steps):
-            # 시뮬레이션 진행
+            # 한 스텝 진행
             stats = self.step()
             
-            # WandB 로깅
-            wandb.log({"step": step, **stats})
+            # 데이터 기록
+            self.times.append(stats['time'])
+            self.total_preys.append(stats['total_prey'])
+            self.total_predators.append(stats['total_predator'])
             
             # 시각화
             if step % plot_interval == 0:
                 self.render()
-                
                 if record_video:
-                    frames.append([plt.gcf()])
+                    # 현재 프레임을 PNG 파일로 저장
+                    frame_path = os.path.join(temp_dir, f'frame_{step:05d}.png')
+                    self.fig.canvas.draw()
+                    self.fig.savefig(frame_path, dpi=100, bbox_inches='tight', pad_inches=0.1)
+                    frame_files.append(frame_path)
+                    print(f"Frame {step}/{total_steps} saved")  # 진행상황 출력
         
-        # 비디오 저장
-        if record_video and frames:
-            print(f"비디오 저장 중: {video_filename}")
-            ani = ArtistAnimation(self.fig, frames, interval=200, blit=True)
-            ani.save(video_filename, writer='ffmpeg')
-            print(f"비디오 저장 완료: {video_filename}")
+        if record_video and frame_files:
+            print(f"생성된 프레임 수: {len(frame_files)}")
+            # 첫 프레임을 읽어서 비디오 크기 결정
+            first_frame = cv2.imread(frame_files[0])
+            if first_frame is None:
+                print(f"Error: Cannot read frame {frame_files[0]}")
+                return
+                
+            height, width = first_frame.shape[:2]
+            print(f"프레임 크기: {width}x{height}")
+            
+            # 비디오 저장
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            fps = min(30, self.config['video_fps'])
+            video = cv2.VideoWriter('simulation.mp4', fourcc, fps, (width, height))
+            
+            if not video.isOpened():
+                print("Error: VideoWriter failed to open")
+                return
+            
+            # 모든 프레임을 비디오에 추가
+            for i, frame_path in enumerate(frame_files):
+                frame = cv2.imread(frame_path)
+                if frame is not None:
+                    video.write(frame)
+                    print(f"Writing frame {i+1}/{len(frame_files)}")
+                else:
+                    print(f"Error: Cannot read frame {frame_path}")
+                # 임시 파일 삭제
+                os.remove(frame_path)
+            
+            video.release()
+            # 임시 디렉토리 삭제
+            os.rmdir(temp_dir)
+            print("비디오 생성 완료")
+            
+            # 녹화 모드 해제
+            delattr(self, '_recording')
         
-        plt.ioff()
-        plt.show()
-        wandb.finish() 
+        # 마지막 상태 표시
+        self.render()
+        plt.show() 
