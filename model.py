@@ -34,10 +34,24 @@ class GridBasedModel:
     
     def _initialize_densities(self, config):
         """초기 밀도 분포 설정"""
-        n_prey = config['n_prey']
-        n_predator = config['n_predator']
-        n_prey_location = config['n_prey_location']
-        n_predator_location = config['n_predator_location']
+        # 초기 밀도 기반으로 개체수 계산
+        total_cells = self.L * self.L
+        
+        # 피식자 초기화 파라미터
+        prey_location_rate = config['prey_location_rate']
+        prey_density = config['prey_density']
+        
+        # 포식자 초기화 파라미터
+        predator_location_rate = config['predator_location_rate']
+        predator_density = config['predator_density']
+        
+        # 총 개체수 계산: L*L * location_rate * density
+        n_prey = int(total_cells * prey_location_rate * prey_density)
+        n_predator = int(total_cells * predator_location_rate * predator_density)
+        
+        # 위치 개수 계산: L*L * location_rate
+        n_prey_location = int(total_cells * prey_location_rate)
+        n_predator_location = int(total_cells * predator_location_rate)
         
         # 피식자 초기 분포: n_prey_location개의 무작위 위치에 균등 분포
         prey_per_location = n_prey // n_prey_location
@@ -75,8 +89,13 @@ class GridBasedModel:
 
         # 디버그 출력 추가
         print(f"Initial setup:")
+        print(f"Grid size (L): {self.L}, Total cells: {total_cells}")
+        print(f"Prey - Location rate: {prey_location_rate}, Density: {prey_density}")
         print(f"Prey - Total: {np.sum(self.prey_density)}, Expected: {n_prey}")
+        print(f"Prey locations: {n_prey_location}, Per location: {prey_per_location}")
+        print(f"Predator - Location rate: {predator_location_rate}, Density: {predator_density}")
         print(f"Predator - Total: {np.sum(self.predator_density)}, Expected: {n_predator}")
+        print(f"Predator locations: {n_predator_location}, Per location: {predator_per_location}")
         print(f"Max prey density: {np.max(self.prey_density)}")
         print(f"Max predator density: {np.max(self.predator_density)}")
     

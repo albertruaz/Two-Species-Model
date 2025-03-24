@@ -7,6 +7,9 @@
 **/*.pywz
 **/*.pyzw
 
+.DS_Store
+*.mp4
+
 **/*.log
 
 **/*.json
