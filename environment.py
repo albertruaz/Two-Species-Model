@@ -12,7 +12,7 @@ class Environment:
         config: 모델 설정 딕셔너리
         """
         # 난수 시드 설정
-        seed = config.get('random_seed', 42)
+        seed = config.get('random_seed', 30)
         np.random.seed(seed)
         
         self.config = config

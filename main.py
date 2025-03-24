@@ -4,30 +4,29 @@ from environment import Environment
 def main():
     # 시뮬레이션 설정값
     config = {
-        # 시뮬레이션 기본 설정
-        'total_steps': 1000,   # 총 시뮬레이션 스텝 수
-        'L': 100,           # 실제 공간의 크기
-        'boundary_condition': 'dirichlet',  # 경계 조건 ('periodic', 'neumann', 'dirichlet')
-        'movement_pattern': '8dir_weighted',  # 이동 패턴 ('4dir', '8dir', '8dir_weighted')
-        
-        # 초기 개체수 설정
-        'n_prey': 4000,      # 초기 피식자(prey) 수
-        'n_predator': 1000,   # 초기 포식자(predator) 수
-        'n_prey_location': 20,     # 피식자 초기 위치 개수
-        'n_predator_location': 20,  # 포식자 초기 위치 개수
+        # 공간 파라미터
+        'L': 100,
+        'boundary_condition': 'periodic',  # 'periodic', 'neumann', 'dirichlet'
         
         # 이동 관련 설정
-        'prey_speed': 1.0,      # 피식자 이동 속도
-        'predator_speed': 1.0,  # 포식자 이동 속도
-        'prey_move_percent': 0.1,     # 피식자 이동 확률
-        'predator_move_percent': 0.2,  # 포식자 이동 확률
+        'movement_pattern': '8dir',  # '4dir', '8dir', '8dir_weighted'
+        'prey_move_percent': 0.6,
+        'predator_move_percent': 0.6,
+        
+        # 초기 개체수 설정
+        'n_prey':8000,
+        'n_prey_location': 4000,
+        'n_predator': 8000,
+        'n_predator_location': 4000,
         
         # Lotka-Volterra 파라미터
-        'birth_rate_prey': 0.3,       # 피식자 번식률
-        'birth_rate_predator': 0.6,   # 포식자 번식률 (증가)
-        'death_rate_predator': 0.1,    # 포식자 자연사망률
-        'interaction_rate': 0.01,     # 포식자-피식자 상호작용 계수 (증가)
-        'carrying_capacity': 100,      # 환경수용력 (격자당)
+        'K': 50,  # 환경수용력
+        'beta': 2,  # 포식률
+        
+        # 시뮬레이션 기본 설정
+        'total_steps': 500,   # 총 시뮬레이션 스텝 수
+        'prey_speed': 1.0,      # 피식자 이동 속도
+        'predator_speed': 1.0,  # 포식자 이동 속도
         
         # 시각화 관련 설정
         'n_grid': 10,
@@ -47,7 +46,7 @@ def main():
         'pause_interval': 0.01,           # 그래프 갱신 간격 (초)
         
         # 비디오 설정
-        'record_video': True,  # 비디오 저장 여부
+        'record_video': False,  # 비디오 저장 여부
         'video_fps': 30,        # 비디오 프레임률
         
         # WandB 설정
