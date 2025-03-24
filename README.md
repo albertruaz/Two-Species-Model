@@ -1,8 +1,8 @@
 # Predator-Prey Simulation Model
 
-이 프로젝트는 격자 기반의 포식자-피식자 모델을 구현한 시뮬레이션입니다. Lotka-Volterra 방정식을 기반으로 하며, 공간적 분포와 이동을 고려한 확장된 모델을 제공합니다.
+Simulating Prey-Predator model in Grid 2D map. Based on Random Walk and Lotka-Volterra.
 
-## 주요 특징
+## Main Factor
 
 1. **Lotka-Volterra 방정식**
 
@@ -28,19 +28,19 @@
    - `neumann`: 반사 경계 조건
    - `dirichlet`: 흡수 경계 조건
 
-## 설정 파라미터
+## Default Parameter
 
 ```python
 config = {
    # 공간 파라미터
-   'L': 100,                    # 공간 크기
+   'L': 50,                    # 공간 크기
    'n_grid': 10,               # 시각화용 격자 크기
    'boundary_condition': 'periodic',
 
    # 이동 설정
    'movement_pattern': '8dir',
-   'prey_move_percent': 0.6,    # 피식자 이동 확률
-   'predator_move_percent': 0.6, # 포식자 이동 확률
+   'prey_move_percent': 0.888,    # 피식자 이동 확률
+   'predator_move_percent': 0.888, # 포식자 이동 확률
 
    # 초기 분포 설정
    'prey_location_rate': 0.2,     # 전체 공간 중 10%에 분포
@@ -67,35 +67,22 @@ config = {
 }
 ```
 
-## 실행 방법
-
-1. 필요한 패키지 설치:
+## Run
 
 ```bash
 pip install numpy scipy matplotlib
 ```
 
-2. 시뮬레이션 실행:
-
 ```bash
 python main.py
 ```
 
-## 시각화
+## Result
 
-1. 공간상의 밀도 분포 (컬러맵)
-2. 시간에 따른 전체 개체수 변화
-3. 특정 지역의 개체수 변화
+By modeling and simulating prey-predator map, we could find relation of L,Beta,K and population change. Beta had big influence on the change of population. If we set beta 1, we could find predator distincting. If beta gets bigger, predator more likely to make prey extinct. And as we set beta 3 we could find Density on map becoming more unstable.
 
-## 구현
+### Simulation Result(K=1.5 K=2 K=3 in order)
 
-- RK4(Runge-Kutta 4차) 방법을 사용한 수치해석
-- NumPy를 활용한 효율적인 행렬 연산
-- 다양한 경계 조건 처리
-- Matplotlib을 이용한 실시간 시각화
-- 시뮬레이션 결과 비디오 저장 기능
-
-## 설명
-
-- 초기 개체수와 위치 설정이 시뮬레이션 결과에 큰 영향
-- 수치적 안정성을 위해 적절한 파라미터 설정 중요
+![K=1.5](assets/1.png)
+![K=2](assets/2.png)
+![K=3](assets/3.png)
